@@ -12,7 +12,7 @@ app.post("/screenshots", async (req, res) => {
   const data = req.body.data;
 
   if (!Array.isArray(data) || data.length === 0) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: "Invalid data format",
     });
@@ -22,7 +22,7 @@ app.post("/screenshots", async (req, res) => {
 
   const batchNumber = 3;
   try {
-    fs.mkdir(path.join(__dirname, "uploads", "screenshots"), {
+    await fs.mkdir(path.join(__dirname, "uploads", "screenshots"), {
       recursive: true,
     });
     browser = await chromium.launch();
@@ -35,20 +35,20 @@ app.post("/screenshots", async (req, res) => {
       for (const url of batch) {
         console.log("Processing URL:", url);
         // Add your URL processing logic here
-
-        const page = await context.newPage();
-        await page.goto(url);
-        const screenshotBuffer = await page.screenshot({
-          path: `${Date.now()}.png`,
-        });
         const filePath = path.join(
           __dirname,
           "uploads",
           "screenshots",
-          `screenshot-${i}.png`
+          `${Date.now()}.png`
         );
-        await fs.writeFile(filePath, screenshotBuffer);
 
+        const page = await context.newPage();
+        await page.goto(url, { timeout: 30000, waitUntil: "networkidle" });
+        await page.screenshot({
+          path: filePath,
+          animations: "disabled",
+          timeout: 30000,
+        });
         // push url screenshot path to data array
         results.push({
           url,
@@ -65,10 +65,10 @@ app.post("/screenshots", async (req, res) => {
 
         console.log(`Screenshot taken for ${url}`);
       }
-      await context.close();
-
-      res.json({ success: true, data: results });
     }
+    await context.close();
+
+    res.json({ success: true, data: results });
   } catch (error) {
     console.error("Error processing URLs:", error);
     res.status(500).json({
@@ -86,7 +86,7 @@ app.post("/screenshots", async (req, res) => {
 app.post("/pdf", async (req, res) => {
   const { html } = req.body;
   if (!html) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
       message: "Invalid data format",
     });
@@ -94,7 +94,9 @@ app.post("/pdf", async (req, res) => {
   let browser;
 
   try {
-    fs.mkdir(path.join(__dirname, "uploads", "pdfs"), { recursive: true });
+    await fs.mkdir(path.join(__dirname, "uploads", "pdfs"), {
+      recursive: true,
+    });
     browser = await chromium.launch();
     const context = await browser.newContext();
     const page = await context.newPage();
